@@ -195,20 +195,20 @@ void ubidots_cleanup(UbidotsClient *client) {
 }
 
 
-/* Set up the UART serial port.  Sets it up to be non-blocking at 
+/* Set up the UART serial port.  Sets it up to be non-blocking at
 a baud rate of 9600 bps */
-int init() 
+int init()
 {
 	int uart0_filestream = -1;
 	uart0_filestream = open("/dev/ttyS0", O_RDWR | O_NOCTTY | O_NDELAY);
-	
+
 	if (uart0_filestream == -1)
-	{	
+	{
 		printf("Error: Unable to open UART\n");
 		return SYSERR;
 	}
 	else
-	{	
+	{
 		printf("Successfully opened UART port\n");
 
 		struct termios options;
@@ -230,14 +230,14 @@ int init()
 int transmit(int serial, char* buffer_base, char* p_buffer)
 {
 	int count = write(serial, buffer_base, (p_buffer - buffer_base));
-			
+
 	if(count < 0)
 	{
 		printf("Transmit Error\n");
 		return SYSERR;
 	}
 
-	return OK;	
+	return OK;
 }
 
 /* Receives response from device.  If numerical value then it is uploaded to the cloud */
@@ -245,12 +245,12 @@ void* receive(void* arg)
 {
 	int serial = *((int*)arg);
 	free(arg);
-	
+
 	if(serial != -1)
 	{
 		unsigned char rx_buffer[RX_SIZE], storage[100];
 		int i;
-		
+
 		for(i = 0; i < RX_SIZE; i++)
 			rx_buffer[i] = 0;
 
@@ -259,7 +259,7 @@ void* receive(void* arg)
 
 		while(1)
 		{
-			rx_length = read(serial, (void*) rx_buffer, RX_SIZE - 1);			
+			rx_length = read(serial, (void*) rx_buffer, RX_SIZE - 1);
 
 			if(rx_length > 0)
 			{
@@ -267,8 +267,8 @@ void* receive(void* arg)
 				sum += rx_length;
 
 				rx_buffer[rx_length] = '\0';
-				strcat(storage, rx_buffer);	
-				
+				strcat(storage, rx_buffer);
+
 					if(storage[sum-1] == 0x0D)
 					{
 
@@ -276,22 +276,22 @@ void* receive(void* arg)
 							storage[sum] = '\0';
 							printf("\33[2k\rResponse:%s\nCommand:", storage);
 							fflush(stdout);
-						
+
 							if(storage[0] != '*')
 							{
 								value = strtod(storage, NULL);
 								printf("\33[2k\rSaving %f to the cloud...", value);
 								ubidots_save_value(client, "5942d2ca762542022ae7c5d6", value, TIMESTAMP_NOW);
 								printf("done\n");
-							}	
+							}
 							sum = 0;
-							bzero(&storage, sum);	
+							bzero(&storage, sum);
 						pthread_mutex_unlock(&count_mutex);
-					}	
+					}
 
-			}	
+			}
 		}
-	}	
+	}
 }
 
 
@@ -299,12 +299,12 @@ void* receive(void* arg)
 int main()
 {
 	int i, serial = init();
-	
+
 	/* ----------------------------- */
 	printf("Connecting to the cloud...");
 
 	client = ubidots_init("3d08eb13f058278570b22e031547f9d03134a814");
-	
+
 	if(client == NULL)
 	{
 		printf("client = NULL\n");
@@ -314,24 +314,24 @@ int main()
 	printf("connected\n");
 
 
-	/* ----------------------------- */	
+	/* ----------------------------- */
 
 	int *arg = malloc(sizeof(*arg));
-	*arg = serial;	
+	*arg = serial;
 
-	/* Thread Pool */	
-	pthread_t recv_t, tran_t;	
+	/* Thread Pool */
+	pthread_t recv_t, tran_t;
 
 	/* Thread setup  */
 	if(pthread_create(&recv_t, NULL, receive,(void*)arg) != 0)
 	{
 		printf("Failed to create thread");
 		return -1;
-	}	
+	}
 
 	unsigned char tx_buffer[BUF_SIZE], c;
 	unsigned char *p_tx_buffer_cur, *p_tx_buffer_base;
-		
+
 	for(i = 0; i < BUF_SIZE; i++)
 		tx_buffer[i] = 0;
 
@@ -339,22 +339,22 @@ int main()
 	p_tx_buffer_cur = p_tx_buffer_base;
 
 	printf("Command:");
-		
+
 	while((c = getchar()) != 'q')
 	{
 		if((c != 0x00))
-		{	
+		{
 			if(c != '\n')
 				*p_tx_buffer_cur++ = c;
-				
+
 			if(c == '\n' && (p_tx_buffer_cur != p_tx_buffer_base))
 			{
-				*p_tx_buffer_cur++ = 0x0D;		
-				
+				*p_tx_buffer_cur++ = 0x0D;
+
 				transmit(serial, p_tx_buffer_base, p_tx_buffer_cur);
 				bzero(p_tx_buffer_base, (p_tx_buffer_cur - p_tx_buffer_base));
 				p_tx_buffer_cur = &tx_buffer[0];
-			}	
+			}
 		}
 	}
 	printf("Closing serial...");
